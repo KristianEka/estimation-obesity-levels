@@ -1,0 +1,225 @@
+---
+title: "Obesity"
+author: "Kristian Ekachandra"
+date: "2021"
+output: openintro::lab_report
+---
+
+#Load all packages 
+
+```{r load-packages, message=FALSE, warning=FALSE}
+library(Amelia)
+library(ggplot2)
+library(GGally)
+library(tidyverse)
+library(knitr) 
+library(rpart)
+library(rpart.plot)
+library(party)
+library(caret)
+```
+
+#Data Validation
+   
+```{r, message=FALSE, warning=FALSE}
+
+#Read data from csv
+dat <- read.csv("dataset.csv")
+str(dat)
+summary(dat)
+
+#Data Validation
+missmap(dat)
+
+#data type into factor
+dat$Gender <-as.factor(dat$Gender)
+dat$family_history_with_overweight <-as.factor(dat$family_history_with_overweight)
+dat$FAVC<-as.factor(dat$FAVC)
+dat$CAEC<-as.factor(dat$CAEC)
+dat$SCC <-as.factor(dat$SCC)
+dat$SMOKE<-as.factor(dat$SMOKE)
+dat$CALC<-as.factor(dat$CALC)
+dat$MTRANS<-as.factor(dat$MTRANS)
+dat$NObeyesdad<-as.factor(dat$NObeyesdad)
+
+#Sort to the right order
+dat$CAEC <- factor(dat$CAEC, levels = c("Always", "Frequently", "Sometimes", "no"))
+dat$CALC <- factor(dat$CALC, levels = c("Always", "Frequently", "Sometimes", "no"))
+dat$MTRANS <- factor(dat$MTRANS, levels = c("Walking", "Bike", "Motorbike", "Automobile", "Public_Transportation"))
+dat$NObeyesdad <- factor(dat$NObeyesdad, levels = c("Insufficient_Weight", "Normal_Weight", "Overweight_Level_I", "Overweight_Level_II", "Obesity_Type_I", "Obesity_Type_II", "Obesity_Type_III"))
+```
+
+#Data Visualitation
+
+```{r, message=FALSE, warning=FALSE}
+#Data Categorical
+
+##Gender
+ggplot2::ggplot(data = dat) + 
+  aes(x = Gender, fill = Gender) + 
+  geom_bar() +
+  labs(title = "Distribution by Gender")
+
+##Family History With Overweight
+ggplot2::ggplot(data = dat) + 
+  aes(x = family_history_with_overweight, fill = family_history_with_overweight) + 
+  geom_bar() +
+  labs(title = "Distribution by Obesity Class Family History With Overweight")
+
+##Frequent consumption of high caloric food
+ggplot2::ggplot(data = dat) + 
+  aes(x = FAVC, fill = FAVC) + 
+  geom_bar() +
+  labs(title = "Distribution by Frequent consumption of high caloric food")
+
+##Consumption of food between meals
+ggplot2::ggplot(data = dat) + 
+  aes(x = CAEC, fill = CAEC) + 
+  geom_bar() +
+  labs(title = "Distribution by Consumption of food between meals")
+
+##SMOKE
+ggplot2::ggplot(data = dat) + 
+  aes(x = SMOKE, fill = SMOKE) + 
+  geom_bar() +
+  labs(title = "Distribution by SMOKE")
+
+##Calories consumption monitoring
+ggplot2::ggplot(data = dat) + 
+  aes(x = SCC, fill = SCC) + 
+  geom_bar() +
+  labs(title = "Distribution by Calories consumption monitoring")
+
+##Consumption of alcohol
+ggplot2::ggplot(data = dat) + 
+  aes(x = CALC, fill = CALC) + 
+  geom_bar() +
+  labs(title = "Distribution by Consumption of alcohol")
+
+##Transportation used
+ggplot2::ggplot(data = dat) + 
+  aes(x = MTRANS, fill = MTRANS) + 
+  geom_bar() +
+  labs(title = "Distribution by Transportation used") + 
+   theme(axis.text.x =  element_text(size = 10, angle = 20))
+
+##Obesity
+ggplot2::ggplot(data = dat) + 
+  aes(x = NObeyesdad, fill = NObeyesdad) + 
+  geom_bar() +
+  labs(title = "Distribution by Obesity Class") +
+  theme(axis.text.x =  element_text(size = 10, angle = 20))
+
+#Data Numeric
+##Age
+ggplot2::ggplot(data = dat,aes(Age)) +
+    geom_density(fill="light blue", color="light blue", alpha=0.8)+
+    ggtitle("Distribution of Age") +
+    theme_classic()
+
+#Corelation
+library(GGally)
+ggcorr(dat, method = c("everything"))+
+  labs(title = "Predictor Variables")
+
+```
+
+#Split Data
+
+```{r, message=FALSE, warning=FALSE}
+NIM <- 43961
+set.seed(NIM)
+samp <- sample(nrow(dat), 0.8 * nrow(dat), replace = FALSE)
+data_train <- dat[samp, ] #80% data_train
+data_test <- dat[-samp, ] #20% data_test
+
+```
+
+#Algorithm :
+
+1. Decision Tree
+
+```{r fig, message=FALSE, warning=FALSE, fig.height=20, fig.width=15}
+#rpart
+
+#fit model
+obesity_rpart <- rpart(NObeyesdad ~., 
+                       data = data_train,
+                       method = "class")
+
+#plot
+rpart.plot(obesity_rpart, 
+           main= "Obesity Data with Decision Tree (rpart)", 
+           space = 0, 
+           split.cex = 2, 
+           nn.border.col = 4,
+           box.palette="RdBu", nn = TRUE)
+print(obesity_rpart)
+
+#predict
+predict_rpart <- predict(obesity_rpart, data_test, type = "class")
+
+#confusion matrix rpart
+caret::confusionMatrix(predict_rpart, data_test$NObeyesdad)
+# Accuracy : 0.8345
+
+
+#party
+
+#fit model
+obesity_party <- ctree(NObeyesdad ~ ., data = data_train)
+
+#plot
+plot(obesity_party, 
+     type = "simple", 
+     main = "Obesity Data with Decision Tree (party)")
+print(obesity_party)
+
+#predict
+predict_party <- predict(obesity_party, data_test, type = "response")
+(table_party = table(predict_party,data_test$NObeyesdad))
+
+#confusion matrix party
+caret::confusionMatrix(table_party)
+
+# Accuracy : 0.9196
+
+#the comparison of accuracy using party (91.96%) is higher than using rpart (83.45%).
+ 
+```
+
+2. Naive Bayes
+
+```{r, message=FALSE, warning=FALSE}
+#making model
+nb_mod <- klaR::NaiveBayes(NObeyesdad ~  Gender + Age + Height + Weight + family_history_with_overweight + FAVC + CAEC + SCC + SMOKE + CALC + MTRANS + CH2O, data = data_train)
+
+#predict
+pred <- predict(nb_mod, data_test) #test model to data testing
+
+#confusion matrix
+(tab <- table(pred$class, data_test$NObeyesdad))
+caret::confusionMatrix(tab)
+#Accuracy : 70.69%
+
+#plot
+data_test$pred <- pred$class
+Xket <- "Truth"
+Yket <- "Predicted"
+Judul <- "Obesity - Naive Bayess"
+
+ggplot(data = data_test) + 
+  aes(NObeyesdad, pred, color = NObeyesdad) +
+  geom_jitter(width = 0.2, height = 0.1, size = 3) +
+  labs(title = Judul,
+       subtitle = "Predicted vs. Observed from Obesity dataset",
+       x = Xket, y = Yket) +
+  theme(axis.text.x =  element_text(size = 10, angle = 20))
+```
+
+#Conclusion
+
+Using the decision tree algorithm in classifying obesity data is better than using the Naive Bayes algorithm.
+By comparison accuracy:
+1. Decision Tree (party)  : 91.96%
+2. Naive Bayes    : 70.69%
